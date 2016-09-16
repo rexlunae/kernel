@@ -8,3 +8,6 @@ crate-type = ["staticlib"]
 
 [dependencies]
 rlibc = "0.1.4"
+x86 = "0.8.0"
+time = { default-fearures = false, version = "0.1" }
+log = { default-features = false, version = "0.3.6" }
