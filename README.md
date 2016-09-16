@@ -1,5 +1,5 @@
-# x86 kernel
-> a simple x86 kernel, extended with Rust 
+# kernel
+> a simple kernel, extended with Rust 
 
 this is my work following along with a [@phil-opp][2]'s blog post series ["A minimal x86 kernel"][1]
 
@@ -29,7 +29,7 @@ generated code.
 ## up and running
 
 1. fork and clone this repository
-2. navigate into the repo directory: `cd x86-kernel`
+2. navigate into the repo directory: `cd kernel`
 3. `$ vagrant up`
 4. `$ vagrant ssh -- -Y`
     `-- -Y` forwards graphics
