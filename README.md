@@ -1,7 +1,7 @@
 # kernel
 > a simple kernel, extended with Rust 
 
-this is my work following along with a [@phil-opp][2]'s blog post series ["A minimal x86 kernel"][1]
+Branched from Ashley William's excellent x86 kernel, using [@phil-opp][2]'s blog post series ["A minimal x86 kernel"][1]
 
 ## prerequisites
 
