@@ -1,8 +1,11 @@
 #![feature(lang_items)]
+#![feature(const_fn)]
+#![feature(unique)]
 #![no_std]
-
+#![warn(non_snake_case)]
 extern crate rlibc;
 extern crate x86;
+extern crate spin;
 //extern crate time;
 
 #[macro_use]
