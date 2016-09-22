@@ -1,3 +1,5 @@
+pub mod vga;
+
 // Initialize the architecture-specific features.
 pub fn init() {
     let hello = b"Hello World!";
