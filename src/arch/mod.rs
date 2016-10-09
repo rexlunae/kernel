@@ -1,7 +1,9 @@
+#[macro_use]
 pub mod vga;
 
 // Initialize the architecture-specific features.
 pub fn init() {
+/*
     let hello = b"Hello World!";
     let color_byte = 0x1f;
 
@@ -10,7 +12,7 @@ pub fn init() {
         hello_colored[i * 2] = *char_byte;
     }
 
-    let buffer_ptr = (0xb8000  +1988) as *mut _;
+    let buffer_ptr = (0xb8000  + 1988) as *mut _;
     unsafe { *buffer_ptr = hello_colored };
-    
+*/    
 }

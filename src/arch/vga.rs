@@ -10,13 +10,37 @@
 use core::ptr::Unique;
 use core::fmt;
 use spin::Mutex;
+use term::{Terminal, Result, Attr, color};
 
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
+#[allow(dead_code)]
+#[repr(u8)]
+pub enum VGAColor {
+    Black = 0,
+    Blue = 1,
+    Green = 2,
+    Cyan = 3,
+    Red = 4,
+    Magenta = 5,
+    Brown = 6,
+    LightGray = 7,
+    DarkGray = 8,
+    LightBlue = 9,
+    LightGreen = 10,
+    LightCyan = 11,
+    LightRed = 12,
+    Pink = 13,
+    Yellow = 14,
+    White = 15,
+}
+
 pub static WRITER: Mutex<Writer> = Mutex::new(Writer {
     column_position: 0,
-    color_code: ColorCode::new(Color::LightGreen, Color::Black),
+    fg: VGAColor::White,
+    bg: VGAColor::Black,
+    color_code: ColorCode::new(VGAColor::LightGreen, VGAColor::Black),
     buffer: unsafe { Unique::new(0xb8000 as *mut _) },
 });
 
@@ -43,7 +67,9 @@ pub unsafe fn print_error(fmt: fmt::Arguments) {
 
     let mut writer = Writer {
         column_position: 0,
-        color_code: ColorCode::new(Color::Red, Color::Black),
+		fg: VGAColor::White,
+		bg: VGAColor::Black,
+        color_code: ColorCode::new(VGAColor::Red, VGAColor::Black),
         buffer: Unique::new(0xb8000 as *mut _),
     };
     writer.new_line();
@@ -51,30 +77,49 @@ pub unsafe fn print_error(fmt: fmt::Arguments) {
 }
 
 
-#[allow(dead_code)]
-#[repr(u8)]
-pub enum Color {
-    Black = 0,
-    Blue = 1,
-    Green = 2,
-    Cyan = 3,
-    Red = 4,
-    Magenta = 5,
-    Brown = 6,
-    LightGray = 7,
-    DarkGray = 8,
-    LightBlue = 9,
-    LightGreen = 10,
-    LightCyan = 11,
-    LightRed = 12,
-    Pink = 13,
-    Yellow = 14,
-    White = 15,
+
+// If only this were simple...
+impl VGAColor {
+
+/*
+    // This really is only a rough approximation.
+    const vga_to_ansi = [
+        color::BLACK,
+        color::BLUE,
+        color::GREEN,
+        color::CYAN,
+        color::RED,
+        color::MAGENTA,
+        color::BLACK,       // There is no brown in ANSI
+        color::WHITE,       // Instead of gray
+        color::BLACK,       // Instead of dark gray
+        color::BRIGHT_BLUE,
+        color::BRIGHT_GREEN,
+        color::BRIGHT_CYAN,
+        color::BRIGHT_RED,
+        color::BRIGHT_RED,  // Instead of pink
+        color::YELLOW,
+        color::BRIGHT_WHITE,
+    ];
+
+    fn to_ansi(self) -> color::Color {
+        vga_to_ansi[self as usize]
+    }
+
+    fn from_ansi(color::Color) -> &mut Self {
+        for (i,color) in vga_to_ansi.enumerate() {
+            if color == color::Color
+                return i as Self
+        }
+    }
+*/
 }
 
 pub struct Writer {
     column_position: usize,
     color_code: ColorCode,
+    fg: VGAColor,
+    bg: VGAColor,
     buffer: Unique<Buffer>,
 }
 
@@ -129,16 +174,80 @@ impl fmt::Write for Writer {
     }
 }
 
-#[derive(Clone, Copy)]
-struct ColorCode(u8);
 
-impl ColorCode {
-    const fn new(foreground: Color, background: Color) -> ColorCode {
-        ColorCode((background as u8) << 4 | (foreground as u8))
+// Note that color::Color is from the term module.
+impl Terminal for Writer {
+    type Output= Writer;
+
+    fn fg(&mut self, color: color::Color) -> Result<()> {
+		self.fg = VGAColor::White;
+        Ok(())
+    }
+
+    fn bg(&mut self, color: color::Color) -> Result<()> {
+		self.bg = VGAColor::Black;
+        Ok(())
+    }
+
+    fn attr(&mut self, attr: Attr) -> Result<()> {
+        Ok(())
+    }
+
+    fn cursor_up(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn delete_line(&mut self) -> Result<()> {
+		self.clear_row(0);
+        Ok(())
+    }
+
+    fn carriage_return(&mut self) -> Result<()> {
+		self.new_line();
+        Ok(())
+    }
+
+    fn reset(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn get_ref(&self) -> &Self::Output {
+		self.get_ref()
+
+    }
+
+    fn get_mut(&mut self) -> &mut Self::Output {
+		self.get_mut()
+    }
+
+    fn into_inner(self) -> Self::Output where Self: Sized {
+		self
+    }
+
+    fn supports_attr(&self, attr: Attr) -> bool {
+        true
+    }
+
+    fn supports_reset(&self) -> bool {
+        true
+    }
+
+    fn supports_color(&self) -> bool {
+        true
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
+struct ColorCode(u8);
+
+impl ColorCode {
+    const fn new(foreground: VGAColor, background: VGAColor) -> ColorCode {
+        ColorCode((background as u8) << 4 | (foreground as u8))
+    }
+
+}
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct ScreenChar {
     ascii_character: u8,
@@ -148,3 +257,4 @@ struct ScreenChar {
 struct Buffer {
     chars: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
+
