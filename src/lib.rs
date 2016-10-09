@@ -3,16 +3,13 @@
 #![feature(unique)]
 #![no_std]
 extern crate rlibc;
-extern crate x86;
 extern crate spin;
 //extern crate time;
 
 #[macro_use]
 extern crate log;
 
-//use x86::shared::control_regs::{cr0,cr0_write};
 //use time::now;
-use x86::shared::halt;
 
 pub mod syslog;
 pub mod term;
@@ -25,12 +22,12 @@ pub mod arch;
 #[no_mangle]
 pub extern fn rust_main() {
     //let boot_time = now();
-    arch::init();
-    println!("Now booting!!!");
+    let cpu = arch::init();
+    println!("Architecture: {}", cpu.arch);
     
     // Main Kernel loop
     loop {
-		unsafe { halt(); }
+		unsafe { arch::halt(); }
 		println!("Cycle!");
     }
 }

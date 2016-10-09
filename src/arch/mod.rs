@@ -8,7 +8,10 @@ type CPU = x86_64::CPU;
 // Initialize the architecture-specific features.
 pub fn init() -> CPU {
 	let cpu = CPU::init();
-	println!("Running as {}", cpu.arch);
 	
 	cpu
+}
+
+pub fn halt() {
+	unsafe { CPU::halt(); }
 }
