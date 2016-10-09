@@ -1,7 +1,7 @@
 // X86_64-specific code.
 extern crate x86;
 
-use x86::shared::halt;
+use self::x86::shared::halt;
 
 pub struct CPU {
 	pub arch: &'static str,

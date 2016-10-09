@@ -12,6 +12,7 @@ pub fn init() -> CPU {
 	cpu
 }
 
+#[inline(always)]
 pub fn halt() {
 	unsafe { CPU::halt(); }
 }
