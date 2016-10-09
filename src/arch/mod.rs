@@ -1,18 +1,14 @@
 #[macro_use]
 pub mod vga;
 
+#[cfg(target_arch="x86_64")]
+mod x86_64;
+type CPU = x86_64::CPU;
+
 // Initialize the architecture-specific features.
-pub fn init() {
-/*
-    let hello = b"Hello World!";
-    let color_byte = 0x1f;
-
-    let mut hello_colored = [color_byte; 24];
-    for (i, char_byte) in hello.into_iter().enumerate() {
-        hello_colored[i * 2] = *char_byte;
-    }
-
-    let buffer_ptr = (0xb8000  + 1988) as *mut _;
-    unsafe { *buffer_ptr = hello_colored };
-*/    
+pub fn init() -> CPU {
+	let cpu = CPU::init();
+	println!("Running as {}", cpu.arch);
+	
+	cpu
 }

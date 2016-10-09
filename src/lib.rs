@@ -27,8 +27,12 @@ pub extern fn rust_main() {
     //let boot_time = now();
     arch::init();
     println!("Now booting!!!");
-
-    unsafe { halt(); }
+    
+    // Main Kernel loop
+    loop {
+		unsafe { halt(); }
+		println!("Cycle!");
+    }
 }
 
 // This is required by because Rust creates some references to it even if we disable it.
