@@ -6,8 +6,8 @@ mod x86_64;
 type CPU = x86_64::CPU;
 
 // Initialize the architecture-specific features.
-pub fn init() -> CPU {
-	let cpu = CPU::init();
+pub fn init(boot_info_struct: usize) -> CPU {
+	let cpu = CPU::init(boot_info_struct);
 	
 	cpu
 }
