@@ -20,10 +20,11 @@ pub mod arch;
 
 
 #[no_mangle]
-pub extern fn rust_main() {
+pub extern fn rust_main(boot_info_struct: usize) {
     //let boot_time = now();
-    let cpu = arch::init();
-    println!("Architecture: {}", cpu.arch);
+    let cpu = arch::init(boot_info_struct);
+    println!("CPU Architecture: {}", cpu.arch);
+    println!("Boot struct located at {}", boot_info_struct);
     
     // Main Kernel loop
     loop {
@@ -34,6 +35,6 @@ pub extern fn rust_main() {
 
 // This is required by because Rust creates some references to it even if we disable it.
 #[allow(non_snake_case)]
-#[no_mangle] fn _Unwind_Resume() -> ! { loop {} }
+#[no_mangle] pub fn _Unwind_Resume() -> ! { loop {} }
 #[lang = "eh_personality"] extern fn eh_personality() {}
 #[lang = "panic_fmt"] extern fn panic_fmt() -> ! { loop{} }
