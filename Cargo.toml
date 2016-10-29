@@ -7,9 +7,11 @@ authors = ["ag_dubs"]
 crate-type = ["staticlib"]
 
 [dependencies]
-rlibc = "0.1.4"
+rlibc = "1.0"
 x86 = "0.8.0"
-time = { default-fearures = false, version = "0.1" }
+time = { default-features = false, version = "0.1" }
 log = { default-features = false, version = "0.3.6" }
 spin = "0.4.4"
-multiboot2 = "0.1.0"
+multiboot2 = "0.3.0"
+#alloc-no-stdlib = { version = "1.2.0", features = ["no-stdlib"] }
+linked_list_allocator = "0.2.2"
