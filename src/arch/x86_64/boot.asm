@@ -1,4 +1,8 @@
 global start
+global p4_table
+global p3_table
+global p2_table
+
 extern long_mode_start
 
 section .text
