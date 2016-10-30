@@ -111,12 +111,29 @@ enable_paging:
   ; enable PAE-flag in cr4 (Physical Address Extension)
   mov eax, cr4
   or eax, 1 << 5
-  mov cr4, eax
+  
+  ; enable global pages. (CR4.PGE)
+  or eax, 1 << 7
+  
+  ; enable process context identifiers if supported. (CR4.PCID)
+  or eax, 1 << 17  
+  
+  ; enable protection against supervisor-mode code accessing user-mode data. (CR4.SMEP)  Per Intel: If CPUID.(EAX=07H,ECX=0H):EBX.SMEP [bit 7] = 1, CR4.SMEP may be set to 1, enabling supervisor-mode execution prevention (see Section 4.6).
+  or eax, 1 << 20
+  
+  ; enable protection against supervisor code accessing user-mode data (CR4.SMAP) Per Intel: If CPUID.(EAX=07H,ECX=0H):EBX.SMAP [bit 20] = 1, CR4.SMAP may be set to 1, enabling supervisor-mode access prevention (see Section 4.6).
+  or eax, 1 << 21
 
+  mov cr4, eax
+  
   ; set the long mode bit in the EFER MSR (model specific register)
   mov ecx, 0xC0000080
   rdmsr
+  ; enable long mode
   or eax, 1 << 8
+  ; enable no-execute bit. (EFER.NXE)  Per Intel: If CPUID.80000001H:EDX.NX [bit 20] = 1, IA32_EFER.NXE may be set to 1, allowing PAE paging and IA-32e paging to disable execute access to selected pages (see Section 4.6). (Processors that do not support CPUID function 80000001H do not allow IA32_EFER.NXE to be set to 1.)
+  ; add NXE flag
+  or eax, 1 << 11
   wrmsr
 
   ; enable paging in the cr0 register
