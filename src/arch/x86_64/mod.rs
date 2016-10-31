@@ -9,13 +9,10 @@ use self::x86::shared::control_regs::{cr0,cr3,cr4};
 //use self::alloc_no_stdlib::Allocator;
 
 extern "C" {
-	static mut p4_table: u64; //&'static mut [paging::PAddr; 512];
-	static mut p3_table: u64; //&'static mut [paging::PAddr; 512];
-	static mut p2_table: u64; //&'static mut [paging::PAddr; 512];
-
-	//static mut p4_table: paging::PML4;
-	//static mut p3_table: paging::PDPT;
-	//static mut p2_table: paging::PD;
+	static mut p4_table: paging::PML4;
+	static mut p3_table: paging::PDPT;
+	static mut p2_table: paging::PD;
+	// The kernel doesn't use a page table because it's using large (2M) pages.
 
 }
 pub struct CPU {
@@ -39,13 +36,22 @@ impl CPU {
 		for area in memory_map_tag.memory_areas() {
 			println!("memory region 0x{:x} length 0x{:x}", area.base_addr, area.length);
 		}
-
+		
+		// Remap the kernel to use have identity-mapped access to the first 512GB of memory.  For most configurations, this should be plenty.
+		for index in 0..511 {
+			unsafe {
+				p3_table[index] = paging::PDPTEntry::new(paging::PAddr::from_u64(index as u64 * 0x40000000),  paging::PDPT_P | paging::PDPT_RW | paging::PDPT_PS);
+			}
+		}
+		
 		unsafe {
 			println!("cr0: 0b{:b}, cr4: 0b{:b}", cr0().bits(), cr4().bits());
 			println!("cr3: 0x{:x}", cr3());
-			println!("p4_table @ {:p}: 0x{:x}", &p4_table, p4_table);
-			println!("p3_table @ {:p}: 0x{:x}", &p3_table, p3_table);
-			println!("p2_table @ {:p}: 0x{:x}", &p2_table, p2_table);
+			println!("p4_table @ {:p}: 0x{:x}", &p4_table, p4_table[0].bits());
+			println!("p3_table[0] @ {:p}: 0x{:x}", &p3_table, p3_table[0].bits());
+			println!("p3_table[1] @ {:p}: 0x{:x}", &p3_table, p3_table[1].bits());
+			println!("p2_table[0] @ {:p}: 0x{:x}", &p2_table, p2_table[0].bits());
+			println!("p2_table[1] @ {:p}: 0x{:x}", &p2_table, p2_table[1].bits());
 
 		}
 
