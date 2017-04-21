@@ -1,17 +1,24 @@
+[profile.dev]
+panic="abort"
+
 [package]
-name = "my_os"
-version = "1.0.0"
-authors = ["ag_dubs"]
+name = "low_kernel"
+version = "0.0.1"
+authors = ["rexlunae"]
 
 [lib]
 crate-type = ["staticlib"]
 
 [dependencies]
 rlibc = "1.0"
-x86 = "0.8.0"
+x86 = "0.8.1"
+x86_64 = "0.1.1"
 time = { default-features = false, version = "0.1" }
-log = { default-features = false, version = "0.3.6" }
-spin = "0.4.4"
-multiboot2 = "0.3.0"
-#alloc-no-stdlib = { version = "1.2.0", features = ["no-stdlib"] }
-linked_list_allocator = "0.2.2"
+log = { default-features = false, version = "0.3.7" }
+spin = "0.4.5"
+multiboot2 = "0.3.2"
+linked_list_allocator = "0.2.5"
+#linked_list_allocator = { version = "0.2.3", path = '../linked-list-allocator' }
+lazy_static = { features=["spin_no_std"], version="0.2" }
+core_collections = "0.3"
+core_io = "0.1"
