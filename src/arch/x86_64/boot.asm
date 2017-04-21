@@ -110,6 +110,8 @@ setup_page_tables:
 enable_paging:
   ; load P4 to cr3 register (cpu uses this to access the P4 table)
   mov eax, p4_table
+  
+  ; The low 12 bits of cr3 represent the PCID of the current process...semi-coincidentally set to 0 here because of alignment.  This is fine.
   mov cr3, eax
 
   ; enable PAE-flag in cr4 (Physical Address Extension)
@@ -156,7 +158,7 @@ p3_table:
 p2_table:
   resb 4096
 stack_bottom:
-  resb 4096
+  resb 2097152
 stack_top:
 
 section .rodata
