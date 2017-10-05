@@ -7,7 +7,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use core::ptr::Unique;
+//use core::ptr::Unique;
+use core::ptr::Shared;
 use core::fmt;
 use spin::Mutex;
 use term::{Terminal, Result, Attr, color};
@@ -41,7 +42,7 @@ pub static WRITER: Mutex<Writer> = Mutex::new(Writer {
     fg: VGAColor::White,
     bg: VGAColor::Black,
     color_code: ColorCode::new(VGAColor::LightGreen, VGAColor::Black),
-    buffer: unsafe { Unique::new(0xb8000 as *mut _) },
+    buffer: unsafe { Shared::new(0xb8000 as *mut _).unwrap() },
 });
 
 macro_rules! println {
@@ -70,7 +71,7 @@ pub unsafe fn print_error(fmt: fmt::Arguments) {
 		fg: VGAColor::White,
 		bg: VGAColor::Black,
         color_code: ColorCode::new(VGAColor::Red, VGAColor::Black),
-        buffer: Unique::new(0xb8000 as *mut _),
+        buffer: Shared::new(0xb8000 as *mut _).unwrap(),
     };
     writer.new_line();
     writer.write_fmt(fmt);
@@ -120,7 +121,7 @@ pub struct Writer {
     color_code: ColorCode,
     fg: VGAColor,
     bg: VGAColor,
-    buffer: Unique<Buffer>,
+    buffer: Shared<Buffer>,
 }
 
 impl Writer {
