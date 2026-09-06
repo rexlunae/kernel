@@ -1,7 +1,5 @@
 //! See <https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#system-resource-affinity-table-srat>
 
-use core::slice;
-
 use rmm::{Arch, BumpAllocator, FrameAllocator};
 use spin::once::Once;
 
@@ -19,6 +17,12 @@ mod arch;
 /// Length of the reserved space after the standard SDT header, before subtables.
 const SRAT_RESERVED_LEN: usize = 12;
 
+struct NumaInfo {
+    dom_node_map: [u32; numa::MAX_DOMAINS],
+    cpus: [u32; MAX_CPU_COUNT as usize],
+    memories: [NumaMemory; numa::MAX_DOMAINS],
+}
+
 #[repr(C, packed)]
 pub struct Srat {
     sdt: &'static Sdt,
@@ -31,31 +35,18 @@ pub fn init<A: Arch>(
     once_cpus: &Once<&'static [u32]>,
     mem: &Once<&'static [NumaMemory]>,
 ) {
-    let dom_node_map = allocator
-        .allocate(rmm::FrameCount::new(2))
+    let numa_info = allocator
+        .allocate(rmm::FrameCount::new(
+            size_of::<NumaInfo>().div_ceil(A::PAGE_SIZE),
+        ))
         .expect("Failed to allocate memory for storing NUMA info");
 
-    let dom_node_map_ptr = crate::memory::RmmA::phys_to_virt(dom_node_map).data() as *mut u32;
-
-    // Occupies 512 bytes (1/8th of a page)
-    let dom_node_map: &'static mut [u32] =
-        unsafe { slice::from_raw_parts_mut(dom_node_map_ptr, numa::MAX_DOMAINS) };
-
-    // occupies 512 bytes (1/8th of a page)
-    let cpus: &'static mut [u32] = unsafe {
-        slice::from_raw_parts_mut(
-            dom_node_map_ptr.add(numa::MAX_DOMAINS),
-            MAX_CPU_COUNT as usize,
-        )
-    };
-
-    // total occupied till now: 1024 bytes, remaining 3072 bytes, can accomodate 128 memory entries
-    let memories: &'static mut [NumaMemory] = unsafe {
-        slice::from_raw_parts_mut(
-            cpus.as_ptr().add(numa::MAX_DOMAINS) as *mut NumaMemory,
-            numa::MAX_DOMAINS,
-        )
-    };
+    let numa_info = crate::memory::RmmA::phys_to_virt(numa_info).data() as *mut NumaInfo;
+    let NumaInfo {
+        dom_node_map,
+        cpus,
+        memories,
+    } = unsafe { &mut *numa_info };
 
     dom_node_map.fill(u32::MAX);
     cpus.fill(u32::MAX);
