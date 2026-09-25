@@ -29,7 +29,8 @@ use spin::RwLock;
 #[repr(C)]
 pub struct Idt {
     pub(crate) entries: [IdtEntry; 256],
-    reservations: [AtomicU32; 8],
+    // TODO: track reservations in userspace instead, with a daemon that sends various capabilities
+    reservations: [u32; 8],
     backup_stack_end: usize,
 }
 
@@ -37,7 +38,7 @@ impl Idt {
     const fn new() -> Self {
         Self {
             entries: [IdtEntry::new(); 256],
-            reservations: [const { AtomicU32::new(0) }; 8],
+            reservations: [0; 8],
             backup_stack_end: 0,
         }
     }
@@ -47,25 +48,15 @@ impl Idt {
         let byte_index = index / 32;
         let bit = index % 32;
 
-        self.reservations[usize::from(byte_index)].load(Ordering::Acquire) & (1 << bit) != 0
+        self.reservations[usize::from(byte_index)] & (1 << bit) != 0
     }
 
     #[inline]
-    pub(crate) fn set_reserved(&self, index: u8, reserved: bool) {
+    pub(crate) fn set_reserved(&mut self, index: u8, reserved: bool) {
         let byte_index = index / 32;
         let bit = index % 32;
 
-        self.reservations[usize::from(byte_index)]
-            .fetch_or(u32::from(reserved) << bit, Ordering::AcqRel);
-    }
-
-    #[inline]
-    pub(crate) fn set_reserved_mut(&mut self, index: u8, reserved: bool) {
-        let byte_index = index / 32;
-        let bit = index % 32;
-
-        *{ &mut self.reservations[usize::from(byte_index)] }.get_mut() |=
-            u32::from(reserved) << bit;
+        self.reservations[usize::from(byte_index)] |= u32::from(reserved) << bit;
     }
 }
 
@@ -74,17 +65,20 @@ const BACKUP_STACK_SIZE: usize = PAGE_SIZE << 4;
 
 static INIT_BSP_IDT: SyncUnsafeCell<Idt> = SyncUnsafeCell::new(Idt::new());
 
-// TODO: VecMap?
-pub(crate) static IDTS: RwLock<HashMap<LogicalCpuId, &'static mut Idt>> =
-    RwLock::new(HashMap::with_hasher(DefaultHashBuilder::new()));
-
 #[inline]
 pub fn is_reserved(cpu_id: LogicalCpuId, index: u8) -> bool {
     if cpu_id == LogicalCpuId::BSP {
         return unsafe { (*INIT_BSP_IDT.get()).is_reserved(index) };
     }
 
-    IDTS.read().get(&cpu_id).unwrap().is_reserved(index)
+    crate::percpu::get_percpu_block(cpu_id)
+        .unwrap()
+        .misc_arch_info
+        .idt
+        .lock()
+        .as_ref()
+        .unwrap()
+        .is_reserved(index)
 }
 
 #[inline]
@@ -94,10 +88,14 @@ pub fn set_reserved(cpu_id: LogicalCpuId, index: u8, reserved: bool) {
         return;
     }
 
-    IDTS.read()
-        .get(&cpu_id)
+    crate::percpu::get_percpu_block(cpu_id)
         .unwrap()
-        .set_reserved(index, reserved);
+        .misc_arch_info
+        .idt
+        .lock()
+        .as_mut()
+        .unwrap()
+        .set_reserved(index, reserved)
 }
 
 pub fn available_irqs_iter(cpu_id: LogicalCpuId) -> impl Iterator<Item = u8> + 'static {
@@ -149,16 +147,12 @@ pub unsafe fn init_bsp() {
             INIT_BSP_BACKUP_STACK.get().addr() + BACKUP_STACK_SIZE,
         );
 
-        install_idt(&mut *INIT_BSP_IDT.get());
+        install_idt(&mut *INIT_BSP_IDT.get(), LogicalCpuId::BSP);
     }
 }
 
 pub fn allocate_and_init_idt(cpu_id: LogicalCpuId) -> *mut Idt {
-    let mut idts_btree = IDTS.write();
-
-    let idt = idts_btree
-        .entry(cpu_id)
-        .or_insert_with(|| Box::leak(Box::new(Idt::new())));
+    let idt = Box::leak(Box::new(Idt::new()));
 
     use crate::memory::{RmmA, RmmArch};
     let must_be_zero = true;
@@ -173,7 +167,7 @@ pub fn allocate_and_init_idt(cpu_id: LogicalCpuId) -> *mut Idt {
 
     init_generic(cpu_id, idt, backup_stack_end);
 
-    *idt
+    idt
 }
 
 const BACKUP_IST: u8 = 1;
@@ -211,7 +205,7 @@ fn init_generic(cpu_id: LogicalCpuId, idt: &mut Idt, backup_stack_end: usize) {
     }
 
     // reserve bits 31:0, i.e. the first 32 interrupts, which are reserved for exceptions
-    *current_reservations[0].get_mut() |= 0x0000_0000_FFFF_FFFF;
+    current_reservations[0] |= 0x0000_0000_FFFF_FFFF;
 
     if cpu_id == LogicalCpuId::BSP {
         // Set up IRQs
@@ -235,13 +229,13 @@ fn init_generic(cpu_id: LogicalCpuId, idt: &mut Idt, backup_stack_end: usize) {
         current_idt[49].set_func(irq::lapic_error);
 
         // reserve bits 49:32, which are for the standard IRQs, and for the local apic timer and error.
-        *current_reservations[1].get_mut() |= 0x0003_FFFF;
+        current_reservations[1] |= 0x0003_FFFF;
     } else {
         // TODO: use_default_irqs! but also the legacy IRQs that are only needed on one CPU
         current_idt[49].set_func(irq::lapic_error);
 
         // reserve bit 49
-        *current_reservations[1].get_mut() |= 1 << 17;
+        current_reservations[1] |= 1 << 17;
     }
 
     // Set IPI handlers
@@ -249,10 +243,10 @@ fn init_generic(cpu_id: LogicalCpuId, idt: &mut Idt, backup_stack_end: usize) {
     current_idt[IpiKind::Switch as usize].set_func(ipi::switch);
     current_idt[IpiKind::Tlb as usize].set_func(ipi::tlb);
     current_idt[IpiKind::Pit as usize].set_func(ipi::pit);
-    idt.set_reserved_mut(IpiKind::Wakeup as u8, true);
-    idt.set_reserved_mut(IpiKind::Switch as u8, true);
-    idt.set_reserved_mut(IpiKind::Tlb as u8, true);
-    idt.set_reserved_mut(IpiKind::Pit as u8, true);
+    idt.set_reserved(IpiKind::Wakeup as u8, true);
+    idt.set_reserved(IpiKind::Switch as u8, true);
+    idt.set_reserved(IpiKind::Tlb as u8, true);
+    idt.set_reserved(IpiKind::Pit as u8, true);
 
     #[cfg(target_arch = "x86")]
     {
@@ -260,14 +254,14 @@ fn init_generic(cpu_id: LogicalCpuId, idt: &mut Idt, backup_stack_end: usize) {
         // Set syscall function
         current_idt[0x80].set_func(syscall::syscall);
         current_idt[0x80].set_flags(IdtFlags::PRESENT | IdtFlags::RING_3 | IdtFlags::INTERRUPT);
-        idt.set_reserved_mut(0x80, true);
+        idt.set_reserved(0x80, true);
     }
 
     #[cfg(feature = "profiling")]
     crate::profiling::maybe_setup_timer(idt, cpu_id);
 }
 
-pub unsafe fn install_idt(idt_ptr: *mut Idt) {
+pub unsafe fn install_idt(idt_ptr: *mut Idt, cpu_id: LogicalCpuId) {
     unsafe {
         let idt = &mut *idt_ptr;
 
@@ -283,6 +277,18 @@ pub unsafe fn install_idt(idt_ptr: *mut Idt) {
         };
 
         dtables::lidt(&idtr);
+    }
+    if cpu_id != LogicalCpuId::BSP {
+        let mut idt_guard = crate::percpu::get_percpu_block(cpu_id)
+            .unwrap()
+            .misc_arch_info
+            .idt
+            .lock();
+        assert!(
+            idt_guard.is_none(),
+            "already initialized cpu {cpu_id:?}'s IDT"
+        );
+        *idt_guard = Some(unsafe { &mut *idt_ptr });
     }
 }
 

@@ -211,7 +211,7 @@ unsafe extern "C" fn start_ap(args_ptr: *const KernelArgsAp) -> ! {
             gdt::install_pcr(args.pcr_ptr);
 
             // Set up IDT
-            idt::install_idt(args.idt_ptr);
+            idt::install_idt(args.idt_ptr, args.cpu_id);
 
             // Initialize paging
             paging::init();

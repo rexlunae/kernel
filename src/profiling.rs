@@ -401,9 +401,12 @@ pub fn maybe_run_profiling_helper_forever(cpu_id: LogicalCpuId) {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         for i in 33..255 {
-            crate::arch::idt::IDTS
-                .write()
-                .get_mut(&cpu_id)
+            crate::percpu::get_percpu_block(cpu_id)
+                .unwrap()
+                .misc_arch_info
+                .idt
+                .lock()
+                .as_mut()
                 .unwrap()
                 .entries[i]
                 .set_func(crate::arch::interrupt::ipi::wakeup);
