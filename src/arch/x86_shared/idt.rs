@@ -1,11 +1,6 @@
-use core::{
-    cell::SyncUnsafeCell,
-    mem,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::{cell::SyncUnsafeCell, mem};
 
 use alloc::boxed::Box;
-use hashbrown::{hash_map::DefaultHashBuilder, HashMap};
 
 use x86::{
     dtables::{self, DescriptorTablePointer},
@@ -20,18 +15,15 @@ use crate::{
         },
         ipi::IpiKind,
     },
+    context::context::Kstack,
     cpu_set::LogicalCpuId,
-    memory::PAGE_SIZE,
 };
-
-use spin::RwLock;
 
 #[repr(C)]
 pub struct Idt {
     pub(crate) entries: [IdtEntry; 256],
     // TODO: track reservations in userspace instead, with a daemon that sends various capabilities
     reservations: [u32; 8],
-    backup_stack_end: usize,
 }
 
 impl Idt {
@@ -39,7 +31,6 @@ impl Idt {
         Self {
             entries: [IdtEntry::new(); 256],
             reservations: [0; 8],
-            backup_stack_end: 0,
         }
     }
 
@@ -59,9 +50,6 @@ impl Idt {
         self.reservations[usize::from(byte_index)] |= u32::from(reserved) << bit;
     }
 }
-
-// Allocate 64 KiB of stack space for the backup stack.
-const BACKUP_STACK_SIZE: usize = PAGE_SIZE << 4;
 
 static INIT_BSP_IDT: SyncUnsafeCell<Idt> = SyncUnsafeCell::new(Idt::new());
 
@@ -133,39 +121,35 @@ fn set_exceptions(idt: &mut [IdtEntry]) {
 
 /// Initializes a fully functional IDT for use before it be moved into the map. This is ONLY called
 /// on the BSP, since the kernel heap is ready for the APs.
-pub unsafe fn init_bsp() {
-    #[repr(C, packed(4096))]
-    struct BackupStack([u8; BACKUP_STACK_SIZE]);
-
-    static INIT_BSP_BACKUP_STACK: SyncUnsafeCell<BackupStack> =
-        SyncUnsafeCell::new(BackupStack([0; BACKUP_STACK_SIZE]));
-
+pub unsafe fn init_bsp_before_mem() {
     unsafe {
-        init_generic(
-            LogicalCpuId::BSP,
-            &mut *INIT_BSP_IDT.get(),
-            INIT_BSP_BACKUP_STACK.get().addr() + BACKUP_STACK_SIZE,
-        );
+        init_generic(LogicalCpuId::BSP, &mut *INIT_BSP_IDT.get());
 
         install_idt(&mut *INIT_BSP_IDT.get(), LogicalCpuId::BSP);
+    }
+}
+#[cold]
+pub unsafe fn init_bsp_after_mem() {
+    let kstack = Kstack::new().expect("failed to allocate backup stack");
+    let stack_end = kstack.initial_top();
+    core::mem::forget(kstack);
+
+    unsafe {
+        install_backup_stack(&mut *INIT_BSP_IDT.get(), stack_end as usize);
     }
 }
 
 pub fn allocate_and_init_idt(cpu_id: LogicalCpuId) -> *mut Idt {
     let idt = Box::leak(Box::new(Idt::new()));
 
-    use crate::memory::{RmmA, RmmArch};
-    let must_be_zero = true;
-    let frames = crate::memory::allocate_p2frame(4, must_be_zero)
-        .expect("failed to allocate pages for backup interrupt stack");
+    let backup_stack = Kstack::new().expect("failed to allocate AP's backup interrupt stack");
+    let backup_stack_end = backup_stack.initial_top() as usize;
+    core::mem::forget(backup_stack);
 
-    // Physical pages are mapped linearly. So is the linearly mapped virtual memory.
-    let base_address = RmmA::phys_to_virt(frames.base());
-
-    // Stack always grows downwards.
-    let backup_stack_end = base_address.data() + BACKUP_STACK_SIZE;
-
-    init_generic(cpu_id, idt, backup_stack_end);
+    init_generic(cpu_id, idt);
+    unsafe {
+        install_backup_stack(idt, backup_stack_end);
+    }
 
     idt
 }
@@ -173,22 +157,10 @@ pub fn allocate_and_init_idt(cpu_id: LogicalCpuId) -> *mut Idt {
 const BACKUP_IST: u8 = 1;
 
 /// Initializes an IDT for any type of processor.
-fn init_generic(cpu_id: LogicalCpuId, idt: &mut Idt, backup_stack_end: usize) {
+fn init_generic(cpu_id: LogicalCpuId, idt: &mut Idt) {
     let (current_idt, current_reservations) = (&mut idt.entries, &mut idt.reservations);
 
     set_exceptions(current_idt);
-
-    // We give Non-Maskable Interrupts, Double Fault, and Machine Check exceptions separate
-    // stacks, since these (unless we are going to set up NMI watchdogs like Linux does) are
-    // considered the most fatal, especially Double Faults which are caused by errors __when
-    // accessing the system IDT__. If that goes wrong, then kernel memory may be partially
-    // corrupt, and we want a separate stack.
-    //
-    // Note that each CPU has its own "backup interrupt stack".
-    idt.backup_stack_end = backup_stack_end;
-    current_idt[2].set_ist(BACKUP_IST);
-    current_idt[8].set_ist(BACKUP_IST);
-    current_idt[18].set_ist(BACKUP_IST);
 
     assert_eq!(
         __generic_interrupts_end as *const () as usize
@@ -265,12 +237,6 @@ pub unsafe fn install_idt(idt_ptr: *mut Idt, cpu_id: LogicalCpuId) {
     unsafe {
         let idt = &mut *idt_ptr;
 
-        #[cfg(target_arch = "x86_64")] // TODO: x86
-        {
-            (*crate::arch::gdt::pcr()).tss.ist[usize::from(BACKUP_IST - 1)] =
-                idt.backup_stack_end as u64;
-        }
-
         let idtr: DescriptorTablePointer<X86IdtEntry> = DescriptorTablePointer {
             limit: (idt.entries.len() * size_of::<IdtEntry>() - 1) as u16,
             base: idt.entries.as_ptr() as *const X86IdtEntry,
@@ -289,6 +255,24 @@ pub unsafe fn install_idt(idt_ptr: *mut Idt, cpu_id: LogicalCpuId) {
             "already initialized cpu {cpu_id:?}'s IDT"
         );
         *idt_guard = Some(unsafe { &mut *idt_ptr });
+    }
+}
+#[cold]
+pub unsafe fn install_backup_stack(idt: &mut Idt, backup_stack_end: usize) {
+    // We give Non-Maskable Interrupts, Double Fault, and Machine Check exceptions separate
+    // stacks, since these (unless we are going to set up NMI watchdogs like Linux does) are
+    // considered the most fatal, especially Double Faults which are caused by errors __when
+    // accessing the system IDT__. If that goes wrong, then kernel memory may be partially
+    // corrupt, and we want a separate stack.
+    //
+    // Note that each CPU has its own "backup interrupt stack".
+    idt.entries[2].set_ist(BACKUP_IST);
+    idt.entries[8].set_ist(BACKUP_IST);
+    idt.entries[18].set_ist(BACKUP_IST);
+
+    #[cfg(target_arch = "x86_64")] // TODO: x86
+    unsafe {
+        (*crate::arch::gdt::pcr()).tss.ist[usize::from(BACKUP_IST - 1)] = backup_stack_end as u64;
     }
 }
 

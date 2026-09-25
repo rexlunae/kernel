@@ -438,7 +438,7 @@ pub fn maybe_setup_timer(idt: &mut Idt, cpu_id: LogicalCpuId) {
         return;
     }
     idt.entries[32].set_func(aux_timer);
-    idt.set_reserved_mut(32, true);
+    idt.set_reserved(32, true);
 }
 #[cfg(feature = "profiling")]
 pub static DBG_ID_MAP: crate::sync::RwLock<
