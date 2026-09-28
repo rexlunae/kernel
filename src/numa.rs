@@ -14,8 +14,13 @@ static NUMA_MEMORY: Once<&'static [NumaMemory]> = Once::new();
 static DISTANCES: Once<&'static [u8]> = Once::new();
 static NUMA_NODES: Once<&'static [NumaNode]> = Once::new();
 
+#[inline(always)]
 pub fn is_supported() -> bool {
-    NUMA_NODES.get().is_some()
+    if cfg!(target_arch = "x86_64") && cfg!(feature = "numa") {
+        NUMA_NODES.get().is_some()
+    } else {
+        false
+    }
 }
 
 /// Each bit of this mask corresponds to an index of `FREE_LISTS`.
@@ -204,6 +209,10 @@ impl Iterator for NumaMemoryIter {
 }
 
 pub fn number_of_memory_regions() -> usize {
+    if !cfg!(target_arch = "x86_64") || !cfg!(feature = "numa") {
+        return 0;
+    }
+
     if let Some(mem) = NUMA_MEMORY.get() {
         mem.iter()
             .map(|e| if e.length != 0 { 1 } else { 0 })
