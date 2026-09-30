@@ -796,7 +796,10 @@ impl AddrSpaceSwitchReadGuard {
     /// Erases the lifetime so unsafe for obvious reasons.
     pub unsafe fn new(guard: RwLockReadGuard<'_, L5, AddrSpace>) -> Self {
         Self {
-            lock: unsafe { core::mem::transmute(guard) },
+            // extend lifetime
+            lock: unsafe {
+                core::mem::transmute::<RwLockReadGuard<'_, _, _>, RwLockReadGuard<'_, _, _>>(guard)
+            },
         }
     }
 }
@@ -2498,7 +2501,6 @@ fn cow(
         });
     }
 
-    let must_be_zero = false;
     let new_frame;
 
     if old_frame == the_zeroed_frame().0 {
