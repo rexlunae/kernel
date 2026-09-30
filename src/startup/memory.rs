@@ -417,7 +417,7 @@ unsafe fn map_phys_contiguous_inactive<A: Arch>(
     assert_eq!(page_count, 0);
 }
 
-unsafe fn map_memory<A: Arch>(areas: &[MemoryArea], mut bump_allocator: &mut BumpAllocator<A>) {
+unsafe fn map_memory<A: Arch>(areas: &[MemoryArea], bump_allocator: &mut BumpAllocator<A>) {
     unsafe {
         let mut mapper = PageMapper::<A, _>::create(TableKind::Kernel, &mut *bump_allocator)
             .expect("failed to create Mapper");

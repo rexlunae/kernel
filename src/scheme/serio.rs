@@ -1,7 +1,7 @@
 //! PS/2 unfortunately requires a kernel driver to prevent race conditions due
 //! to how status is utilized
 
-use core::sync::atomic::AtomicBool;
+//use core::sync::atomic::AtomicBool;
 
 use syscall::data::GlobalSchemes;
 
@@ -37,15 +37,15 @@ static HANDLES: RwLock<L1, HandleMap<Handle>> = RwLock::new(HandleMap::new());
 
 /// Add to the input queue
 pub fn serio_input(index: usize, data: u8, token: &mut CleanLockToken) {
-    unsafe {
-        if index == 0 && data == 45 {
-            // x key pressed
-            //crate::debugger::debugger(None, token);
-        } else if index == 0 && data == 44 {
-            // z key pressed
-            //DEBUG_ENABLE.fetch_xor(true, Ordering::SeqCst);
-        }
+    //unsafe {
+    if index == 0 && data == 45 {
+        // x key pressed
+        //crate::debugger::debugger(None, token);
+    } else if index == 0 && data == 44 {
+        // z key pressed
+        //DEBUG_ENABLE.fetch_xor(true, Ordering::SeqCst);
     }
+    //}
     //crate::profiling::serio_command(index, data);
 
     INPUT[index].send(data, token);

@@ -1,6 +1,6 @@
 use crate::acpi::{rxsdt::Rxsdt, sdt::Sdt, RXSDT_ENUM};
 use core::slice;
-use rmm::{Arch, BumpAllocator};
+use rmm::Arch;
 use spin::once::Once;
 
 #[derive(Debug)]

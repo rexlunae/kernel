@@ -4,22 +4,20 @@ use core::{
     mem::size_of,
     sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering},
 };
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", feature = "profiling"))]
 use rmm::Arch;
 
 #[cfg(feature = "profiling")]
 use crate::arch::{idt::Idt, interrupt::irq::aux_timer};
 
 use crate::{
-    arch::{
-        interrupt::{self, InterruptStack},
-        CurrentRmmArch,
-    },
+    arch::interrupt::{self, InterruptStack},
     cpu_set::LogicalCpuId,
-    memory::VirtualAddress,
     percpu::PercpuBlock,
     syscall::{error::*, usercopy::UserSliceWo},
 };
+#[cfg(feature = "profiling")]
+use crate::{arch::CurrentRmmArch, memory::VirtualAddress};
 
 #[cfg(all(feature = "profiling", not(target_arch = "x86_64")))]
 compile_error!("Profiling not supported outside x86_64");
@@ -201,6 +199,7 @@ pub unsafe fn nmi_handler(stack: &InterruptStack) {
             .load(Ordering::Relaxed) as usize;
     }
 
+    #[cfg_attr(not(feature = "profiling"), expect(unused_mut))]
     let mut len = 4;
 
     #[cfg(feature = "profiling")]

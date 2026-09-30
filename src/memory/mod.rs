@@ -588,7 +588,7 @@ impl<T> FrameAllocated<T> {
 
     #[inline]
     fn as_ptr(&self) -> *mut T {
-        unsafe { RmmA::phys_to_virt(self.frame.base()).data() as *mut T }
+        RmmA::phys_to_virt(self.frame.base()).data() as *mut T
     }
 }
 

@@ -796,10 +796,11 @@ impl FdTbl {
             };
             let desc = context_fd.description.read(token.token());
             // TODO: possibly quite slow
-            if let Ok(s) = desc.scheme_ref.upgrade() {
-                if s.scheme_id() == scheme_id && desc.number == scheme_number {
-                    found = Some(context_fd.clone());
-                }
+            if let Ok(s) = desc.scheme_ref.upgrade()
+                && s.scheme_id() == scheme_id
+                && desc.number == scheme_number
+            {
+                found = Some(context_fd.clone());
             }
         });
         found.ok_or(Error::new(EBADF))
@@ -944,8 +945,8 @@ impl Node {
         let next_shift = shift.saturating_sub(NODE_BITS);
 
         if let Self::Branch(children) = self {
-            for i in 0..max_idx {
-                let child = match &mut children[i] {
+            for child in children.iter_mut() {
+                let child = match child {
                     Some(child) => child,
                     slot @ None => {
                         let child = FrameAllocated::try_new(if next_shift == 0 {
@@ -1170,10 +1171,10 @@ impl RadixFdTbl {
         }
 
         let shift = self.root_shift();
-        if let Some(ref mut root) = self.root {
-            if self.levels > 1 {
-                root.ensure_path(max_index, shift)?;
-            }
+        if let Some(ref mut root) = self.root
+            && self.levels > 1
+        {
+            root.ensure_path(max_index, shift)?;
         }
 
         self.allocated_size = size;

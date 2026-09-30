@@ -1,4 +1,4 @@
-use core::{ops::Add, ptr::write_bytes, slice};
+use core::{ptr::write_bytes, slice};
 
 use crate::{acpi, percpu};
 use bitfield::Bit;

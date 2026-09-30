@@ -308,7 +308,6 @@ pub fn kfx_size() -> usize {
     #[cfg(not(cpu_feature_never = "xsave"))]
     {
         // This wont overflow
-        #[expect(clippy::arithmetic_side_effects)]
         match xsave::info() {
             Some(info) => info.xsave_size as usize,
             None => FXSAVE_SIZE,

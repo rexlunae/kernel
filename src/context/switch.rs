@@ -21,7 +21,7 @@ use alloc::{
 use core::{
     cell::{Cell, Ref, RefCell},
     cmp::Reverse,
-    hint, matches, mem,
+    matches, mem,
     option::Option::{None, Some},
     sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
@@ -836,14 +836,27 @@ fn select_next_context(
                         }
                     }
 
-                    stolen.push((*key, *weight, context_ref.clone(), guard, best_addr_space));
+                    stolen.push(WorkStealingCandidate {
+                        key: *key,
+                        weight: *weight,
+                        context_ref: context_ref.clone(),
+                        guard,
+                        addr_space: best_addr_space,
+                    });
                 }
 
                 if stolen.is_empty() {
                     continue;
                 }
 
-                for (key, weight, context_ref, mut guard, addr_space) in stolen.drain(..) {
+                for WorkStealingCandidate {
+                    key,
+                    weight,
+                    context_ref,
+                    mut guard,
+                    addr_space,
+                } in stolen.drain(..)
+                {
                     target_queue.queue.remove(&key);
                     target_queue.total_weight = target_queue.total_weight.saturating_sub(weight);
                     guard.queue_key = None;
@@ -989,7 +1002,7 @@ fn try_direct_switch_back(
     schedule_time: u128,
     token: &mut CleanLockToken,
 ) -> bool {
-    let (mut prev_guard, mut next_guard) = {
+    let (prev_guard, mut next_guard) = {
         let current = Ref::map(percpu.switch_internals.current_ctxt.borrow(), |c| {
             c.as_ref().expect("no current context")
         });
@@ -1017,7 +1030,7 @@ fn try_direct_switch_back(
 
     if !matches!(
         update_runnable(
-            &mut *next_guard,
+            &mut next_guard,
             percpu.cpu_id,
             schedule_time,
             next_is_current_sched,
@@ -1034,7 +1047,7 @@ fn try_direct_switch_back(
         .map(|addrsp| unsafe { AddrSpaceSwitchReadGuard::new(addrsp.inner.read(token.token())) });
 
     let was_idle = Arc::ptr_eq(
-        &ArcContextLockWriteGuard::rwlock(&prev_guard),
+        ArcContextLockWriteGuard::rwlock(&prev_guard),
         percpu.switch_internals.idle_ctxt.borrow().as_ref().unwrap(),
     );
 
@@ -1086,7 +1099,7 @@ pub fn direct_switch_to(
     let mut next_context_guard = unsafe { next_context.write_arc() };
 
     let next_is_current_sched = Arc::ptr_eq(
-        &percpu
+        percpu
             .switch_internals
             .sched_ctxt
             .borrow()
@@ -1097,7 +1110,7 @@ pub fn direct_switch_to(
 
     if !matches!(
         update_runnable(
-            &mut *next_context_guard,
+            &mut next_context_guard,
             percpu.cpu_id,
             schedule_time,
             next_is_current_sched,
@@ -1151,7 +1164,7 @@ unsafe fn switch_to(
             .sched_ctxt
             .borrow()
             .as_ref()
-            .map_or_else(core::ptr::null, |s| Arc::as_ptr(s));
+            .map_or_else(core::ptr::null, Arc::as_ptr);
         let current_ptr = Arc::as_ptr(ArcRwLockWriteGuard::rwlock(&prev_context_guard));
 
         if sched_ptr != current_ptr
@@ -1257,6 +1270,14 @@ unsafe fn switch_to(
     }
 }
 
+struct WorkStealingCandidate {
+    key: ContextQueueKey,
+    weight: u64,
+    context_ref: WeakContextRef,
+    guard: ArcRwLockWriteGuard<L4, Context>,
+    addr_space: Option<AddrSpaceSwitchReadGuard>,
+}
+
 /// Holds per-CPU state necessary for context switching.
 ///
 /// This struct contains information such as the idle context, current context, and PIT tick counts,
@@ -1286,15 +1307,7 @@ pub struct ContextSwitchPercpu {
 
     /// Holds the data necessary for work-stealing
     /// (key, weight, context_ref, guard, addr_space)
-    tmp_steal: RefCell<
-        Vec<(
-            ContextQueueKey,
-            u64, // weight
-            WeakContextRef,
-            ArcRwLockWriteGuard<L4, Context>,
-            Option<AddrSpaceSwitchReadGuard>,
-        )>,
-    >,
+    tmp_steal: RefCell<Vec<WorkStealingCandidate>>,
 
     /// Run Queue
     pub(crate) run_queue: SpinMutex<RunContextData>,

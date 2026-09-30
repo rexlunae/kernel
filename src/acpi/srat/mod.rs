@@ -133,6 +133,7 @@ impl<'a> Iterator for SratIter<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[expect(clippy::enum_variant_names)]
 pub enum SratEntry {
     LegacyProcessorLocalAffinity(LegacyProcessorLocalAffinity),
     MemoryAffinity(MemoryAffinity),
@@ -145,7 +146,7 @@ pub enum SratEntry {
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
 /// For legacy xAPIC systems
-struct LegacyProcessorLocalAffinity {
+pub struct LegacyProcessorLocalAffinity {
     proximity_domain_low: u8,
     apic_id: u8,
     flags: u32,
@@ -156,7 +157,7 @@ struct LegacyProcessorLocalAffinity {
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
-struct MemoryAffinity {
+pub struct MemoryAffinity {
     proximity_domain: u32,
     _reserved0: u16,
     base_address_low: u32,
@@ -170,7 +171,7 @@ struct MemoryAffinity {
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
 /// For x2APIC systems
-struct ProcessorLocalAffinity {
+pub struct ProcessorLocalAffinity {
     proximity_domain: u32,
     x2apic_id: u32,
     flags: u32,
@@ -179,7 +180,7 @@ struct ProcessorLocalAffinity {
 
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
-struct GiccAffinity {
+pub struct GiccAffinity {
     proximity_domain: u32,
     processor_uid: u32,
     flags: u32,

@@ -92,7 +92,7 @@ pub fn init_srat(
                 );
                 let length = to_usize(memory_affinity.length_low, memory_affinity.length_high);
                 if dom_node_map[dom as usize] == u32::MAX {
-                    dom_node_map[dom as usize] = node_id as u32;
+                    dom_node_map[dom as usize] = node_id;
                     node_id += 1;
                 }
                 memories[memory_id as usize] =
@@ -106,7 +106,7 @@ pub fn init_srat(
                 }
                 let dom = processor_local_affinity.proximity_domain;
                 if dom_node_map[dom as usize] == u32::MAX {
-                    dom_node_map[dom as usize] = node_id as u32;
+                    dom_node_map[dom as usize] = node_id;
                     node_id += 1;
                 }
                 cpus[processor_local_affinity.x2apic_id as usize] = dom_node_map[dom as usize];
