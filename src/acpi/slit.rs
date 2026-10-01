@@ -5,17 +5,17 @@ use spin::once::Once;
 
 #[derive(Debug)]
 pub struct Slit {
-    sdt: &'static Sdt,
+    _sdt: &'static Sdt,
     no: u64,
     address: *const u8,
 }
 
 impl Slit {
-    pub fn new(sdt: &'static Sdt) -> Self {
+    pub fn new(_sdt: &'static Sdt) -> Self {
         Self {
-            sdt,
-            no: unsafe { *(sdt.data_address() as *const u64) },
-            address: (sdt.data_address() + 8) as *const u8,
+            _sdt,
+            no: unsafe { *(_sdt.data_address() as *const u64) },
+            address: (_sdt.data_address() + 8) as *const u8,
         }
     }
     pub fn init(&self) -> &'static mut [u8] {

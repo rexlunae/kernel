@@ -36,6 +36,7 @@ impl FreeListMask {
         self.mask.set_bit(i, true);
     }
 
+    #[allow(unused)]
     pub fn disable_index(&mut self, i: usize) {
         self.mask.set_bit(i, false);
     }
@@ -77,11 +78,6 @@ impl NumaMemory {
             _pad,
         }
     }
-}
-
-#[derive(Debug)]
-pub struct NumaCpu {
-    pub id: u32,
 }
 
 pub fn init<A: Arch>(allocator: &mut BumpAllocator<A>) {
@@ -144,18 +140,10 @@ pub fn init_arch() {
     }
 }
 
-pub fn domain_to_node_id(domain_id: u32) -> Option<u32> {
-    Some(*DOMAIN_NODE_MAP.get()?.get(domain_id as usize)?)
-}
-
-pub fn cpu_belongs_to_which_node(cpu_id: usize) -> Option<u32> {
-    Some(*NUMA_CPUS.get()?.get(cpu_id)?)
-}
-
 /// A helper function that prints information about NUMA - available nodes, cpus and memory blocks in them
 /// their starts and lengths
 pub fn dump_info() {
-    if let Some(map) = DOMAIN_NODE_MAP.get()
+    if let Some(_) = DOMAIN_NODE_MAP.get()
         && let Some(cpus) = NUMA_CPUS.get()
         && let Some(memories) = NUMA_MEMORY.get()
         && let Some(nodes) = NUMA_NODES.get()
@@ -238,20 +226,6 @@ pub fn nearest_next_memory_region(addr: usize, overlap: bool) -> Option<&'static
             }
         })
         .min_by_key(|e| e.start)
-}
-
-pub fn nearest_preceding_memory_region(addr: usize, overlap: bool) -> Option<&'static NumaMemory> {
-    NUMA_MEMORY
-        .get()?
-        .iter()
-        .filter(|e| {
-            if overlap {
-                e.start <= addr
-            } else {
-                e.start < addr
-            }
-        })
-        .max_by_key(|e| e.start)
 }
 
 pub fn current_node() -> Option<&'static NumaNode> {
