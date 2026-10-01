@@ -49,7 +49,7 @@ pub trait Arch: Clone + Copy {
 
     /// Flag used to specify large/huge pages (such as 2MiB/1GiB on x86_64), not meaningful for
     /// leaf tables obviously.
-    fn entry_flag_large(level: NonZeroU8) -> Option<usize> {
+    fn entry_flag_large(_level: NonZeroU8) -> Option<usize> {
         None
     }
 

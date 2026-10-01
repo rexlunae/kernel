@@ -1284,7 +1284,6 @@ struct WorkStealingCandidate {
 /// as well as fields required for managing ptrace sessions and signals.
 pub struct ContextSwitchPercpu {
     switch_result: Cell<Option<SwitchResultInner>>,
-    switch_time: Cell<u128>,
     schedule_time: Cell<u128>,
     pit_ticks: Cell<usize>,
 
@@ -1323,7 +1322,6 @@ impl ContextSwitchPercpu {
         Self {
             switch_result: Cell::new(None),
             schedule_time: Cell::new(0),
-            switch_time: Cell::new(0),
             pit_ticks: Cell::new(0),
             current_ctxt: RefCell::new(None),
             sched_ctxt: RefCell::new(None),

@@ -1,14 +1,22 @@
+#![cfg_attr(
+    not(feature = "profiling"),
+    allow(dead_code, unused_mut, unused_variables)
+)]
 use alloc::{boxed::Box, vec::Vec};
 use core::{
     cell::{SyncUnsafeCell, UnsafeCell},
     mem::size_of,
     sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering},
 };
-#[cfg(all(target_arch = "x86_64", feature = "profiling"))]
-use rmm::Arch;
 
 #[cfg(feature = "profiling")]
-use crate::arch::{idt::Idt, interrupt::irq::aux_timer};
+use {
+    crate::{
+        arch::{idt::Idt, interrupt::irq::aux_timer, CurrentRmmArch},
+        memory::VirtualAddress,
+    },
+    rmm::Arch,
+};
 
 use crate::{
     arch::interrupt::{self, InterruptStack},
@@ -16,8 +24,6 @@ use crate::{
     percpu::PercpuBlock,
     syscall::{error::*, usercopy::UserSliceWo},
 };
-#[cfg(feature = "profiling")]
-use crate::{arch::CurrentRmmArch, memory::VirtualAddress};
 
 #[cfg(all(feature = "profiling", not(target_arch = "x86_64")))]
 compile_error!("Profiling not supported outside x86_64");
@@ -199,7 +205,6 @@ pub unsafe fn nmi_handler(stack: &InterruptStack) {
             .load(Ordering::Relaxed) as usize;
     }
 
-    #[cfg_attr(not(feature = "profiling"), expect(unused_mut))]
     let mut len = 4;
 
     #[cfg(feature = "profiling")]

@@ -14,12 +14,6 @@ use crate::{
     syscall::FloatRegisters,
 };
 
-/// This must be used by the kernel to ensure that context switches are done atomically
-/// Compare and exchange this to true when beginning a context switch on any CPU
-/// The `Context::switch_to` function will set it back to false, allowing other CPU's to switch
-/// This must be done, as no locks can be held on the stack during switch
-pub static CONTEXT_SWITCH_LOCK: AtomicBool = AtomicBool::new(false);
-
 const ST_RESERVED: u128 = 0xFFFF_FFFF_FFFF_0000_0000_0000_0000_0000;
 
 pub const KFX_ALIGN: usize = 16;
