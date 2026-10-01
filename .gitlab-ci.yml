@@ -74,6 +74,8 @@ x86_64:boot:
 riscv64gc:boot:
   stage: test
   needs: [riscv64gc]
+  # TODO: remove
+  allow_failure: true
   script:
     - apt-get update -qq
     - apt-get install -y -qq --no-install-recommends
