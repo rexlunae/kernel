@@ -76,14 +76,14 @@ pub fn allocate_p2frame_with_mask(
     fallback: bool,
     must_be_zero: bool,
 ) -> Option<Frame> {
-    let numreg = numa::number_of_memory_regions();
-    if numreg == 0 {
+    let lists = FREE_LISTS.get().unwrap();
+    if lists.len() == 1 {
         return allocate_p2frame_complex(order, (), None, order, 0, must_be_zero).map(|e| e.0);
     }
 
-    for i in 0..numreg {
+    for i in 0..lists.len() {
         if mask.is_enabled(i)
-            && let Some(_) = FREE_LISTS.get().unwrap().get(i)
+            && let Some(_) = lists.get(i)
             && let Some((frame, _)) =
                 allocate_p2frame_complex(order, (), None, order, i, must_be_zero)
         {
@@ -103,9 +103,9 @@ pub fn allocate_p2frame_with_mask(
         } else {
             // if distance info is not available, just try allocating from the remaining memory regions
             // not present in the mask
-            for i in 0..numreg {
+            for i in 0..lists.len() {
                 if !mask.is_enabled(i)
-                    && let Some(_) = FREE_LISTS.get().unwrap().get(i)
+                    && let Some(_) = lists.get(i)
                     && let Some((frame, _)) =
                         allocate_p2frame_complex(order, (), None, order, i, must_be_zero)
                 {
@@ -123,7 +123,7 @@ pub fn allocate_p2frame(order: u32, must_be_zero: bool) -> Option<Frame> {
     static RR_INDEX: AtomicU8 = AtomicU8::new(0);
     let len = FREE_LISTS.get().unwrap().len();
 
-    if len == 1 {
+    if !numa::is_supported() || len == 1 {
         return allocate_p2frame_complex(order, (), None, order, 0, must_be_zero).map(|e| e.0);
     }
 
@@ -771,12 +771,15 @@ fn init_sections(allocator: &mut BumpAllocator<RmmA>) {
                     .next_multiple_of(MAX_SECTION_SIZE);
                 let aligned_start = area.base.data() / MAX_SECTION_SIZE * MAX_SECTION_SIZE;
 
-                if number_of_memory_regions > 0
+                if cfg!(feature = "numa")
+                    && cfg!(target_arch = "x86_64")
+                    && number_of_memory_regions > 1
                     && let Some(next_memory_region) =
                         numa::nearest_next_memory_region(area.base.data(), false)
-                    && next_memory_region.start < area.base.add(area.size).data()
-                    && next_memory_region.start + next_memory_region.length
-                        > area.base.add(area.size).data()
+                    && next_memory_region.start < aligned_end
+                    && next_memory_region.start + next_memory_region.length > aligned_end
+                    // when a NUMA memory boundary overlaps with a section boundary
+                    // a new section will be created anyway, so there's no need to add 1
                     && !next_memory_region.start.is_multiple_of(MAX_SECTION_SIZE)
                 {
                     return (aligned_end - aligned_start) / MAX_SECTION_SIZE + 1;
@@ -869,19 +872,22 @@ fn init_sections(allocator: &mut BumpAllocator<RmmA>) {
                 let mut page_info_count =
                     core::cmp::min(page_info_max_count, pages_to_next_section);
 
-                if !force
-                    && let Some(region) = region
+                if let Some(region) = region
                     && base.base() >= region.base
                     && base.base().data() < region.base.data() + region.size
                     && (page_info_count * PAGE_SIZE
                         > (region.base.data() + region.size - base.base().data()))
                 {
+                    let mut end = region.base.data() + region.size;
                     page_info_count =
                         (region.base.data() + region.size - base.base().data()) / PAGE_SIZE;
+                    if page_info_count > MAX_SECTION_PAGE_COUNT {
+                        page_info_count = MAX_SECTION_PAGE_COUNT;
+                        end = base.base().data() + MAX_SECTION_PAGE_COUNT * PAGE_SIZE;
+                    }
                     return_value = Some(MemoryArea {
-                        base: PhysicalAddress::new(region.base.data() + region.size),
-                        size: (base.physaddr.get() + pages_left * PAGE_SIZE)
-                            - (region.base.data() + region.size),
+                        base: PhysicalAddress::new(end),
+                        size: (base.physaddr.get() + pages_left * PAGE_SIZE) - end,
                     });
                 }
 
@@ -909,8 +915,8 @@ fn init_sections(allocator: &mut BumpAllocator<RmmA>) {
 
                 pages_left -= page_info_count;
                 base = base.next_by(page_info_count);
-                if let Some(return_value) = return_value {
-                    return Some(return_value);
+                if return_value.is_some() {
+                    return return_value;
                 }
             }
         }
@@ -918,7 +924,7 @@ fn init_sections(allocator: &mut BumpAllocator<RmmA>) {
     };
     let mut i = 0;
 
-    if number_of_memory_regions > 0
+    if number_of_memory_regions > 1
         && let Some(regions) = numa::memory_regions()
     {
         for region in regions {
@@ -1105,7 +1111,9 @@ fn init_sections(allocator: &mut BumpAllocator<RmmA>) {
     };
 
     let free_lists;
-    if let Some(regions) = numa::memory_regions() {
+    if number_of_memory_regions > 1
+        && let Some(regions) = numa::memory_regions()
+    {
         let free_list_page = allocator
             .allocate(FrameCount::new(
                 (numa::number_of_memory_regions() * size_of::<Mutex<FreeList>>())

@@ -214,6 +214,9 @@ pub fn number_of_memory_regions() -> usize {
 }
 
 pub fn memory_regions() -> Option<NumaMemoryIter> {
+    if !cfg!(feature = "numa") || !cfg!(target_arch = "x86_64") {
+        return None;
+    }
     NUMA_MEMORY.get().map(|mem| NumaMemoryIter { i: 0, mem })
 }
 
