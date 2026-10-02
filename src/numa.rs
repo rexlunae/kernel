@@ -27,6 +27,7 @@ pub fn is_supported() -> bool {
 ///
 /// This abstraction allows future extensions to the number of memory regions supported.
 #[derive(Default, Debug, Clone, Copy)]
+#[repr(C)]
 pub struct FreeListMask {
     mask: u128,
 }
@@ -47,12 +48,14 @@ impl FreeListMask {
 }
 
 #[derive(Debug, Default)]
+#[repr(C)]
 pub struct NumaNode {
     pub cpus: u128,
     pub memories: FreeListMask,
 }
 
 #[derive(Debug, Clone, Default)]
+#[repr(C)]
 pub struct NumaMemory {
     pub start: usize,
     pub length: usize,

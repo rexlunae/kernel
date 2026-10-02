@@ -7,7 +7,7 @@ use crate::{
     acpi::{rxsdt::Rxsdt, sdt::Sdt, RXSDT_ENUM},
     cpu_set::MAX_CPU_COUNT,
     memory,
-    numa::{self, NumaMemory},
+    numa::{self, NumaMemory, NumaNode},
 };
 
 #[cfg(target_arch = "x86_64")]
@@ -17,10 +17,12 @@ mod arch;
 /// Length of the reserved space after the standard SDT header, before subtables.
 const SRAT_RESERVED_LEN: usize = 12;
 
+#[repr(C)]
 struct NumaInfo {
     dom_node_map: [u32; numa::MAX_DOMAINS],
     cpus: [u32; MAX_CPU_COUNT as usize],
     memories: [NumaMemory; numa::MAX_DOMAINS],
+    _nodes: [NumaNode; numa::MAX_DOMAINS],
 }
 
 #[repr(C, packed)]
@@ -46,6 +48,7 @@ pub fn init<A: Arch>(
         dom_node_map,
         cpus,
         memories,
+        _nodes: _,
     } = unsafe { &mut *numa_info };
 
     dom_node_map.fill(u32::MAX);
