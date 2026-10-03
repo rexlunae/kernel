@@ -17,7 +17,7 @@ static NUMA_NODES: Once<&'static [NumaNode]> = Once::new();
 #[inline(always)]
 pub fn is_supported() -> bool {
     if cfg!(target_arch = "x86_64") && cfg!(feature = "numa") {
-        NUMA_NODES.get().is_some()
+        DOMAIN_NODE_MAP.get().is_some()
     } else {
         false
     }
