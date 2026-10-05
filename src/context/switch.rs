@@ -377,7 +377,9 @@ fn schedule(
                 // Currently scheduled contexts shouldn't either, as they must by construction be
                 // scheduled on another thread (otherwise guard and prev_context_guard would be the
                 // same object, which is also forbidden).
-                if !guard.status.is_runnable() || guard.currently_scheduled {
+                //
+                // The idle context is runnable, but also should not be pushed.
+                if !guard.status.is_runnable() || guard.currently_scheduled || !guard.userspace {
                     continue;
                 }
 
@@ -422,7 +424,7 @@ fn schedule(
                 guard.queue_key = Some(key);
                 drop(guard);
 
-                run_queue.queue.insert(
+                run_queue.queue_insert(
                     key,
                     ContextQueueValue {
                         vtime: new_vtime,
@@ -880,7 +882,7 @@ fn select_next_context(
                         guard.queue_key = Some(new_key);
                         contexts_data.total_weight =
                             contexts_data.total_weight.saturating_add(weight);
-                        contexts_data.queue.insert(
+                        contexts_data.queue_insert(
                             new_key,
                             ContextQueueValue {
                                 vtime: guard.vtime,
@@ -948,7 +950,7 @@ fn select_next_context(
                 });
 
                 let weight = SCHED_PRIO_TO_WEIGHT[prev_context_guard.prio] as u64;
-                contexts_data.queue.insert(
+                contexts_data.queue_insert(
                     ContextQueueKey {
                         vd,
                         rem_slice: Reverse(rem_slice),
@@ -1476,7 +1478,7 @@ mod tests {
             vtime: u64,
             queue: &mut spin::mutex::SpinMutexGuard<'_, RunContextData>,
         ) {
-            queue.queue.insert(
+            queue.queue_insert(
                 ContextQueueKey {
                     vd: vtime,
                     rem_slice: Reverse(vtime),
@@ -1564,7 +1566,7 @@ mod tests {
         };
         {
             let mut q0 = cpu0.switch_internals.run_queue.lock();
-            q0.queue.insert(last_task.0, last_task.1);
+            q0.queue_insert(last_task.0, last_task.1);
             cpu0.switch_internals.queue_len.store(2, Ordering::Relaxed);
         };
         {

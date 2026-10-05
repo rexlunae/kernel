@@ -110,9 +110,25 @@ impl RunContextData {
         }
     }
     pub fn is_stealable(&self) -> bool {
-        // TODO: queue.len() is never observed to become zero, so this
-        // reserve len == 1 as the state where the cpu is marked as idle.
-        self.queue.len() > 1
+        !self.queue.is_empty()
+    }
+    fn queue_insert(&mut self, k: ContextQueueKey, v: ContextQueueValue) {
+        // it is forbidden to push kmain context
+        /*
+        if let Some(ctx) = v.context_ref.upgrade() {
+            let mut t = unsafe { CleanLockToken::new() };
+            if let Some(g) = ctx.try_read(t.token()) {
+                if !g.userspace {
+                    panic!(
+                        "CPU {} was trying to push {:?} {id}",
+                        crate::cpu_id().get(),
+                        g.name.as_str(),
+                    );
+                }
+            }
+        }
+        */
+        self.queue.insert(k, v);
     }
 }
 
