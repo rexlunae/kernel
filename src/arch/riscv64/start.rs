@@ -102,7 +102,7 @@ unsafe extern "C" fn start(args_ptr: *const KernelArgs) -> ! {
             args.print();
 
             if let Some(dtb) = &dtb {
-                device::dump_fdt(&dtb);
+                debug!("device tree: {:?}", dtb);
             }
 
             // Initialize RMM

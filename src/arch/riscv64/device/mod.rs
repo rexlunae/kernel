@@ -13,51 +13,6 @@ pub mod serial;
 
 use crate::arch::device::irqchip::init_clint;
 
-fn string_property(name: &str) -> bool {
-    name == "compatible"
-        || name == "model"
-        || name == "device_type"
-        || name == "status"
-        || name == "riscv,isa-base"
-        || name == "riscv,isa"
-        || name == "mmu-type"
-        || name == "stdout-path"
-}
-
-fn print_property(prop: &NodeProperty, n_spaces: usize) {
-    (0..n_spaces).for_each(|_| print!(" "));
-    print!("{} =", prop.name);
-    if string_property(prop.name)
-        && let Some(str) = prop.as_str()
-    {
-        println!(" \"{}\"", str);
-    } else if let Some(value) = prop.as_usize() {
-        println!(" 0x{:08x}", value);
-    } else {
-        for v in prop.value {
-            print!(" {:02x}", v);
-        }
-        println!();
-    }
-}
-fn print_node(node: &FdtNode<'_, '_>, n_spaces: usize) {
-    (0..n_spaces).for_each(|_| print!(" "));
-    println!("{}/", node.name);
-    for prop in node.properties() {
-        print_property(&prop, n_spaces + 4);
-    }
-
-    for child in node.children() {
-        print_node(&child, n_spaces + 4);
-    }
-}
-
-pub(crate) fn dump_fdt(fdt: &Fdt) {
-    if let Some(root) = fdt.find_node("/") {
-        print_node(&root, 0);
-    }
-}
-
 unsafe fn init_intc(cpu: &FdtNode) {
     let intc_node = cpu
         .children()
