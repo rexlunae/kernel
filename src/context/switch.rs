@@ -724,7 +724,6 @@ fn select_next_context(
 
     // Work Stealing
     {
-        let local_len = contexts_data.queue.len();
         let num_cpu = crate::cpu_count();
         let curr_cpu = cpu_id.get();
 
@@ -737,7 +736,7 @@ fn select_next_context(
         */
 
         let mut steal_hint = None;
-        let should_steal = local_len == 0
+        let should_steal = !contexts_data.is_stealable()
             /* // disabled: causing livelock in webkit
             || (counter == 0 && {
                 let mut max_neighbour = 0;
@@ -757,7 +756,7 @@ fn select_next_context(
                     }
                 }
 
-                max_neighbour > local_len.saturating_add(STEAL_THRESHOLD)
+                max_neighbour > contexts_data.queue.len().saturating_add(STEAL_THRESHOLD)
             })*/;
 
         if should_steal {
@@ -912,7 +911,7 @@ fn select_next_context(
                 target_percpu
                     .switch_internals
                     .stealable
-                    .store(!target_queue.queue.is_empty(), Ordering::Relaxed);
+                    .store(target_queue.is_stealable(), Ordering::Relaxed);
 
                 break;
             }
@@ -970,14 +969,14 @@ fn select_next_context(
             percpu
                 .switch_internals
                 .stealable
-                .store(!contexts_data.queue.is_empty(), Ordering::Relaxed);
+                .store(contexts_data.is_stealable(), Ordering::Relaxed);
 
             Some((chosen_guard, addr_space))
         } else {
             percpu
                 .switch_internals
                 .stealable
-                .store(!contexts_data.queue.is_empty(), Ordering::Relaxed);
+                .store(contexts_data.is_stealable(), Ordering::Relaxed);
             None
         }
     } else {
@@ -986,7 +985,7 @@ fn select_next_context(
         percpu
             .switch_internals
             .stealable
-            .store(!contexts_data.queue.is_empty(), Ordering::Relaxed);
+            .store(contexts_data.is_stealable(), Ordering::Relaxed);
 
         if (!was_idle || prev_is_dead) && !is_idle {
             // Since the idle context is per-cpu, then assuming its context Arc will only be
