@@ -464,7 +464,7 @@ unsafe fn map_memory<A: Arch>(
             assert_eq!(args.stack_size % PAGE_SIZE as u64, 0);
             assert_ne!(args.stack_size, 0);
 
-            info!(
+            debug!(
                 "MAPPING STACK, BASE {:x} SIZE {:x}",
                 args.stack_base, args.stack_size
             );

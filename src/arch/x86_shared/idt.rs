@@ -44,10 +44,14 @@ impl Idt {
 
     #[inline]
     pub(crate) fn set_reserved(&mut self, index: u8, reserved: bool) {
-        let byte_index = index / 32;
-        let bit = index % 32;
+        let bit = 1 << (index % 32);
+        let word = &mut self.reservations[usize::from(index / 32)];
 
-        self.reservations[usize::from(byte_index)] |= u32::from(reserved) << bit;
+        if reserved {
+            *word |= 1 << bit;
+        } else {
+            *word &= !(1 << bit);
+        }
     }
 }
 
