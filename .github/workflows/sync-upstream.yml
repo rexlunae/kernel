@@ -1,0 +1,28 @@
+name: sync-upstream
+
+# Mirror upstream Redox's kernel (GitLab) into the `upstream` branch of this
+# fork. Ferric Oxide changes live on `main`; upstream is merged into it by PR.
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: ["ci/sync-upstream"]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch upstream and update the upstream branch
+        run: |
+          git remote add gitlab https://gitlab.redox-os.org/redox-os/kernel.git
+          git fetch --no-tags gitlab master
+          git log -1 --format='upstream head: %H %ci %s' FETCH_HEAD
+          git push origin FETCH_HEAD:refs/heads/upstream
