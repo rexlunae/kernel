@@ -13,13 +13,22 @@ fn parse_kconfig(arch: &str) -> Option<()> {
     let config_str = std::fs::read_to_string("config.toml").unwrap();
     let root: Table = toml::from_str(&config_str).unwrap();
 
-    let altfeatures = root
-        .get("arch")?
-        .as_table()
-        .unwrap()
-        .get(arch)?
-        .as_table()
-        .unwrap()
+    let arch_table = root.get("arch")?.as_table().unwrap().get(arch)?.as_table().unwrap();
+
+    // Minimum microarchitecture level, checked at boot (src/arch/x86_64/cpu_level.rs).
+    println!("cargo::rustc-check-cfg=cfg(x86_64_level, values(\"v1\", \"v2\", \"v3\", \"v4\"))");
+    if arch == "x86_64"
+        && let Some(level) = arch_table.get("level")
+    {
+        let level = level.as_str().unwrap();
+        assert!(
+            matches!(level, "v1" | "v2" | "v3" | "v4"),
+            "arch.x86_64.level must be v1, v2, v3 or v4"
+        );
+        println!("cargo:rustc-cfg=x86_64_level=\"{level}\"");
+    }
+
+    let altfeatures = arch_table
         .get("features")?
         .as_table()
         .unwrap();
