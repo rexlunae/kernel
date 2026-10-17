@@ -92,6 +92,10 @@ unsafe extern "C" fn start(args_ptr: *const KernelArgs, stack_end: usize) -> ! {
         info!("Redox OS starting...");
         args.print();
 
+        // Stop early with a clear message on CPUs below the configured baseline.
+        #[cfg(target_arch = "x86_64")]
+        crate::arch::cpu_level::check();
+
         // Set up GDT
         gdt::init_bsp(stack_end);
 

@@ -2,6 +2,9 @@ pub use crate::arch::x86_shared::*;
 
 pub mod alternative;
 
+/// Boot-time check for the configured x86-64 microarchitecture level
+pub mod cpu_level;
+
 #[macro_use]
 pub mod macros;
 

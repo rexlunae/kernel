@@ -1,3 +1,8 @@
+[arch.x86_64]
+# Minimum x86-64 microarchitecture level (v1-v4). The kernel halts at boot with a
+# list of missing features on CPUs below it. Unset means no check.
+#level = "v3"
+
 [arch.x86_64.features]
 smap = "auto"
 fsgsbase = "auto"
