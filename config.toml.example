@@ -3,5 +3,7 @@ smap = "auto"
 fsgsbase = "auto"
 xsave = "auto"
 xsaveopt = "auto"
+# AVX-512 register state (opmask, zmm upper halves, zmm16-31). Needs xsave.
+avx512 = "auto"
 
 # vim: ft=toml

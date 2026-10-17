@@ -278,11 +278,11 @@ pub unsafe fn switch_to(prev: &mut super::Context, next: &mut super::Context) {
             core::arch::asm!(concat!(
                 alternative!(
                     feature: "xsave",
-                    // AVX is available
+                    // AVX is available. On AVX-512 CPUs this also zeroes the upper bits of
+                    // zmm0-zmm15; zmm16-zmm31 and k0-k7 are handled below.
                     then: [
                         "vzeroall"
                     ],
-                    // TODO: when AVX512 is available, zmm15-zmm31 must be zeroed manually
 
                     // AVX is not available
                     default: ["
@@ -312,6 +312,40 @@ pub unsafe fn switch_to(prev: &mut super::Context, next: &mut super::Context) {
                 FCW_OFFSET = const(0),
                 MXCSR_OFFSET = const(24),
             );
+            // With AVX-512 state enabled, zmm16-zmm31 and the opmask registers still hold
+            // whatever the last context to run on this CPU left there. Zero them so nothing
+            // leaks across contexts. VEX-encoded kxorw zero-extends into the full 64-bit k
+            // register, so this needs only AVX512F.
+            core::arch::asm!(alternative!(
+                feature: "avx512",
+                then: ["
+                    vpxord zmm16, zmm16, zmm16
+                    vpxord zmm17, zmm17, zmm17
+                    vpxord zmm18, zmm18, zmm18
+                    vpxord zmm19, zmm19, zmm19
+                    vpxord zmm20, zmm20, zmm20
+                    vpxord zmm21, zmm21, zmm21
+                    vpxord zmm22, zmm22, zmm22
+                    vpxord zmm23, zmm23, zmm23
+                    vpxord zmm24, zmm24, zmm24
+                    vpxord zmm25, zmm25, zmm25
+                    vpxord zmm26, zmm26, zmm26
+                    vpxord zmm27, zmm27, zmm27
+                    vpxord zmm28, zmm28, zmm28
+                    vpxord zmm29, zmm29, zmm29
+                    vpxord zmm30, zmm30, zmm30
+                    vpxord zmm31, zmm31, zmm31
+                    kxorw k0, k0, k0
+                    kxorw k1, k1, k1
+                    kxorw k2, k2, k2
+                    kxorw k3, k3, k3
+                    kxorw k4, k4, k4
+                    kxorw k5, k5, k5
+                    kxorw k6, k6, k6
+                    kxorw k7, k7, k7
+                "],
+                default: [""]
+            ));
         } else {
             core::arch::asm!(
                 alternative!(

@@ -12,6 +12,9 @@ use crate::{
 #[cfg(all(cpu_feature_never = "xsave", not(cpu_feature_never = "xsaveopt")))]
 compile_error!("cannot force-disable xsave without force-disabling xsaveopt");
 
+#[cfg(all(cpu_feature_never = "xsave", cpu_feature_always = "avx512"))]
+compile_error!("cannot force-enable avx512 without xsave");
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct AltReloc {
@@ -120,7 +123,35 @@ pub unsafe fn early_init(bsp: bool) {
                 state.offset()
             });
 
-            // Need to rerun CPUID since XCR0 will have changed if AVX was enabled.
+            // AVX-512 needs three more state components: the opmask registers k0-k7, the upper
+            // halves of zmm0-zmm15, and zmm16-zmm31. Without them in XCR0 every AVX-512
+            // instruction raises #UD, even on CPUs that support it.
+            //
+            // This is only enabled when the "avx512" feature is configured (auto or always),
+            // because the syscall-return fast path in switch_to must then also zero zmm16-zmm31
+            // and the opmask registers, which `vzeroall` leaves alone. Enabling the state without
+            // that code would leak one context's AVX-512 registers into another.
+            if (cfg!(cpu_feature_auto = "avx512") || cfg!(cpu_feature_always = "avx512"))
+                && ymm_upper_offset.is_some()
+                && has_ext_feat(|feat| feat.has_avx512f())
+                && ext_state_info.xcr0_supports_avx512_opmask()
+                && ext_state_info.xcr0_supports_avx512_zmm_hi256()
+                && ext_state_info.xcr0_supports_avx512_zmm_hi16()
+            {
+                xcr0 |= Xcr0::XCR0_OPMASK_STATE
+                    | Xcr0::XCR0_ZMM_HI256_STATE
+                    | Xcr0::XCR0_HI16_ZMM_STATE;
+                x86::controlregs::xcr0_write(xcr0);
+                if bsp {
+                    info!("Enabling AVX-512");
+                }
+
+                enable |= KcpuFeatures::AVX512;
+            } else {
+                assert!(cfg!(not(cpu_feature_always = "avx512")));
+            }
+
+            // Need to rerun CPUID since XCR0 will have changed if AVX or AVX-512 was enabled.
             let ext_state_info = cpuid()
                 .get_extended_state_info()
                 .expect("must be present if XSAVE is supported");
@@ -148,6 +179,7 @@ pub unsafe fn early_init(bsp: bool) {
                     && cfg!(not(cpu_feature_auto = "fsgsbase"))
                     && cfg!(not(cpu_feature_auto = "xsave"))
                     && cfg!(not(cpu_feature_auto = "xsaveopt"))
+                    && cfg!(not(cpu_feature_auto = "avx512"))
             );
         }
 
@@ -202,6 +234,7 @@ unsafe fn overwrite(relocs: &[AltReloc], enable: KcpuFeatures) {
                 "fsgsbase" => enable.contains(KcpuFeatures::FSGSBASE),
                 "xsave" => enable.contains(KcpuFeatures::XSAVE),
                 "xsaveopt" => enable.contains(KcpuFeatures::XSAVEOPT),
+                "avx512" => enable.contains(KcpuFeatures::AVX512),
                 //_ => panic!("unknown altcode relocation: {}", name),
                 _ => true,
             };
@@ -279,6 +312,7 @@ bitflags! {
         const FSGSBASE = 2;
         const XSAVE = 4;
         const XSAVEOPT = 8;
+        const AVX512 = 16;
     }
 }
 
